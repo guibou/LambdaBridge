@@ -5,7 +5,6 @@ module Main where
 import Control.Monad
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Debug.Trace (traceShow)
 import Graphics.Gloss
 import Graphics.Gloss.Data.ViewPort
 import Graphics.Gloss.Interface.Pure.Game (Event (EventKey), Key (SpecialKey), SpecialKey (KeySpace))
@@ -31,17 +30,16 @@ data Edge = Edge Int Int
 
 data World = World
   { nodes :: Map Int Node,
-    edges :: [Edge],
-    g :: Double
+    edges :: [Edge]
   }
   deriving (Show)
 
-h = sqrt 125
+
+h = sqrt 75
 
 initWorld =
   World
     { 
-      g = 0,
       nodes =
         Map.fromList
           [ (0, fixedNode (V2 (-20) 0) Fixed),
@@ -53,7 +51,8 @@ initWorld =
             (5, fixedNode (V2 (-15) (-h)) (Mass 1)),
             (6, fixedNode (V2 (-5) (-h)) (Mass 1)),
             (7, fixedNode (V2 5 (-h)) (Mass 1)),
-            (8, fixedNode (V2 15 (-h)) (Mass 1))
+            (8, fixedNode (V2 15 (-h)) (Mass 1)),
+            (9, fixedNode (V2 25 (-h)) (Mass 1))
           ],
       edges =
         [ 
@@ -75,14 +74,17 @@ initWorld =
           -- Top
           Edge 5 6,
           Edge 6 7,
-          Edge 7 8
+          Edge 7 8,
+
+          -- Dangling
+          Edge 8 9 
         ]
     }
 
-main :: IO ()
-main = play (InWindow "LambdaBridge" (800, 600) (0, 0)) white 20 (warmUp initWorld) draw event (step' 1000)
+g = 50
 
-warmUp w = (applyN 200 (step' 100 (1 / 20)) w) { g = 9.8 }
+main :: IO ()
+main = play (InWindow "LambdaBridge" (800, 600) (0, 0)) white 20 initWorld draw event (step' 10)
 
 draw :: World -> Picture
 draw w =
@@ -92,11 +94,11 @@ draw w =
 
 event :: Event -> World -> World
 event (EventKey (SpecialKey KeySpace) _ _ _) w = w { edges = drop 1 (edges w) }
-event e w = traceShow e w
+event e w = w
 
 z = V2 0 (-1)
 
-k = 1000
+k = 10000
 kDamp = 1
 
 applyN 0 _ v = v
@@ -127,7 +129,7 @@ step dt w = w {nodes = nodes'}
             Mass m ->
               let spring = (fromMaybe (V2 0 0) (Map.lookup nodeId forces_on_nodes))
                   damping = -kDamp * v
-                  gravity = m * (g w) *^ z
+                  gravity = m * g *^ z
                   v = (p - pPrev) ^/ dt
                in (spring + damping + gravity) ^/ m
       let pPrev' = p
