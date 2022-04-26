@@ -23,7 +23,7 @@ data Node = Node
   }
   deriving (Show)
 
-fixedNode p m = Node p p m
+node p m = Node p p m
 
 data Edge = Edge Int Int
   deriving (Show)
@@ -42,17 +42,17 @@ initWorld =
     { 
       nodes =
         Map.fromList
-          [ (0, fixedNode (V2 (-20) 0) Fixed),
-            (1, fixedNode (V2 (-10) 0) (Mass 1)),
-            (2, fixedNode (V2 0 0) (Mass 1)),
-            (3, fixedNode (V2 10 0) (Mass 1)),
-            (4, fixedNode (V2 20 0) Fixed),
+          [ (0, node (V2 (-20) 0) Fixed),
+            (1, node (V2 (-10) 0) (Mass 1)),
+            (2, node (V2 0 0) (Mass 1)),
+            (3, node (V2 10 0) (Mass 1)),
+            (4, node (V2 20 0) Fixed),
 
-            (5, fixedNode (V2 (-15) (-h)) (Mass 1)),
-            (6, fixedNode (V2 (-5) (-h)) (Mass 1)),
-            (7, fixedNode (V2 5 (-h)) (Mass 1)),
-            (8, fixedNode (V2 15 (-h)) (Mass 1)),
-            (9, fixedNode (V2 25 (-h)) (Mass 1))
+            (5, node (V2 (-15) (-h)) (Mass 1)),
+            (6, node (V2 (-5) (-h)) (Mass 1)),
+            (7, node (V2 5 (-h)) (Mass 1)),
+            (8, node (V2 15 (-h)) (Mass 1)),
+            (9, node (V2 25 (-h)) (Mass 1))
           ],
       edges =
         [ 
@@ -99,7 +99,7 @@ event e w = w
 z = V2 0 (-1)
 
 k = 10000
-kDamp = 1
+kDamp = 0.5
 
 applyN 0 _ v = v
 applyN n f v = applyN (n - 1) f (f v)
@@ -117,7 +117,7 @@ step dt w = w {nodes = nodes'}
 
       let restLength = 10
       let currentLength = norm dirIJ
-      let f = k * normalize dirIJ ^* (currentLength - restLength)
+      let f = k *^ normalize dirIJ ^* (currentLength - restLength)
       [(nodeI, f), (nodeJ, - f)]
 
     nodes' = Map.fromList $ do
@@ -139,9 +139,22 @@ step dt w = w {nodes = nodes'}
 
 drawNode (Node (V2 dx dy) _ mass) = Translate (double2Float dx) (double2Float dy) $ Color (if mass == Fixed then red else black) $ Circle 1
 
-drawEdge nodes (Edge nodeA nodeB) = line [readPoint nodeA, readPoint nodeB]
+drawEdge nodes (Edge nodeA nodeB) = Color color $ line [readPoint p0, readPoint p1] <> translate tdx tdy (scale 0.01 0.01 $ text $ show $ truncate springForce)
   where
-    readPoint (position . (nodes !?) -> (V2 x y)) = (double2Float x, double2Float y)
+    rp = position . (nodes !?)
+    restLength = 10
+    p0 = rp nodeA
+    p1 = rp nodeB
+
+    (tdx, tdy) = readPoint ((p0 + p1) / 2)
+
+    springForce = k * (restLength - norm (p0 - p1))
+
+    readPoint (V2 x y) = (double2Float x, double2Float y)
+
+    f = double2Float $ min 1 (abs (springForce / 300))
+
+    color = mixColors f (1 - f) red green
 
 viewport = viewPortInit {viewPortScale = 10}
 
