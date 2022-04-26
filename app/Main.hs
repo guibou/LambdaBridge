@@ -1,5 +1,7 @@
+{-# LANGUAGE GHC2021 #-}
 {-# LANGUAGE ViewPatterns #-}
-
+{-# LANGUAGE NoFieldSelectors #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 module Main where
 
 import Control.Monad
@@ -89,11 +91,11 @@ main = play (InWindow "LambdaBridge" (800, 600) (0, 0)) white 20 initWorld draw 
 draw :: World -> Picture
 draw w =
   applyViewPortToPicture viewport $
-    foldMap drawNode (Map.elems (nodes w))
-      <> foldMap (drawEdge (nodes w)) (edges w)
+    foldMap drawNode (Map.elems (w.nodes))
+      <> foldMap (drawEdge (w.nodes)) (w.edges)
 
 event :: Event -> World -> World
-event (EventKey (SpecialKey KeySpace) _ _ _) w = w { edges = drop 1 (edges w) }
+event (EventKey (SpecialKey KeySpace) _ _ _) w = w { edges = drop 1 (w.edges) }
 event e w = w
 
 z = V2 0 (-1)
@@ -110,8 +112,8 @@ step :: Double -> World -> World
 step dt w = w {nodes = nodes'}
   where
     forces_on_nodes = Map.fromListWith (+) $ do
-      Edge nodeI nodeJ <- edges w
-      let dirIJ = position ((nodes w) !? nodeJ) - position (nodes w !? nodeI)
+      Edge nodeI nodeJ <- w.edges
+      let dirIJ = (w.nodes !? nodeJ).position - (w.nodes !? nodeI).position
 
       guard $ dirIJ /= V2 0 0
 
@@ -121,7 +123,7 @@ step dt w = w {nodes = nodes'}
       [(nodeI, f), (nodeJ, - f)]
 
     nodes' = Map.fromList $ do
-      (nodeId, Node p pPrev m) <- Map.toList (nodes w)
+      (nodeId, Node p pPrev m) <- Map.toList w.nodes
 
       -- Add springs
       let accel = case m of
@@ -141,7 +143,7 @@ drawNode (Node (V2 dx dy) _ mass) = Translate (double2Float dx) (double2Float dy
 
 drawEdge nodes (Edge nodeA nodeB) = Color color $ line [readPoint p0, readPoint p1] <> translate tdx tdy (scale 0.01 0.01 $ text $ show $ truncate springForce)
   where
-    rp = position . (nodes !?)
+    rp = (.position) . (nodes !?)
     restLength = 10
     p0 = rp nodeA
     p1 = rp nodeB
