@@ -2,6 +2,10 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoFieldSelectors #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# OPTIONS -Wall #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
 import Control.Monad
@@ -14,6 +18,9 @@ import Linear
 import GHC.Stack (HasCallStack)
 import Data.Maybe (fromMaybe)
 import GHC.Float
+import Control.Lens (over)
+import Data.Generics.Labels ()
+import GHC.Generics (Generic)
 
 data NodeMass = Fixed | Mass Double
   deriving (Show, Eq)
@@ -34,7 +41,7 @@ data World = World
   { nodes :: Map Int Node,
     edges :: [Edge]
   }
-  deriving (Show)
+  deriving (Show, Generic)
 
 
 h = sqrt 75
@@ -95,8 +102,8 @@ draw w =
       <> foldMap (drawEdge (w.nodes)) (w.edges)
 
 event :: Event -> World -> World
-event (EventKey (SpecialKey KeySpace) _ _ _) w = w { edges = drop 1 (w.edges) }
-event e w = w
+event (EventKey (SpecialKey KeySpace) _ _ _) w = over #edges (drop 1) w
+event _e w = w
 
 z = V2 0 (-1)
 
@@ -141,7 +148,7 @@ step dt w = w {nodes = nodes'}
 
 drawNode (Node (V2 dx dy) _ mass) = Translate (double2Float dx) (double2Float dy) $ Color (if mass == Fixed then red else black) $ Circle 1
 
-drawEdge nodes (Edge nodeA nodeB) = Color color $ line [readPoint p0, readPoint p1] <> translate tdx tdy (scale 0.01 0.01 $ text $ show $ truncate springForce)
+drawEdge nodes (Edge nodeA nodeB) = Color color $ line [readPoint p0, readPoint p1] <> translate tdx tdy (scale 0.01 0.01 $ text $ show @Int $ truncate springForce)
   where
     rp = (.position) . (nodes !?)
     restLength = 10
