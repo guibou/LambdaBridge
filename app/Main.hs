@@ -93,7 +93,7 @@ initWorld =
 g = 50
 
 main :: IO ()
-main = play (InWindow "LambdaBridge" (800, 600) (0, 0)) white 20 initWorld draw event (step' 10)
+main = play (InWindow "LambdaBridgeUI" (800, 600) (0, 0)) white 20 initWorld draw event (step' 10)
 
 draw :: World -> Picture
 draw w =
