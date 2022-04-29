@@ -29,11 +29,14 @@ executable LambdaBridge
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
+    default-extensions:
+      GHC2021
+      NoFieldSelectors
+      OverloadedRecordDot
     build-depends:    base
                     , gloss
                     , linear
                     , containers
-                    , generic-lens
-                    , lens
     hs-source-dirs:   app
     default-language: Haskell2010
+    ghc-options: -Wall -Wincomplete-uni-patterns
