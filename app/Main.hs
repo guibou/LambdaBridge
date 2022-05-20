@@ -4,17 +4,15 @@
 
 module Main where
 
+import Data.Foldable (minimumBy)
+import Data.List (delete)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Ord (comparing)
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game (Event (..))
-import Linear (V2 (..), (*^))
+import Linear (Metric (distance), V2 (..), (*^), (^/))
 import Linear.Metric (normalize)
-import Linear (Metric(distance))
-import Debug.Trace
-import Data.List (delete)
-import Data.Foldable (minimumBy)
-import Data.Ord (comparing)
 
 -- Drawing UI
 
@@ -56,20 +54,22 @@ drawNode (Node (V2 x y) _velocity state) = Translate x y image
       Fixed -> Color red (Polygon [(-10, -10), (10, -10), (10, 10), (-10, 10)])
 
 -- drawEdge (V2 x y) (V2 x' y') = Line [(x, y), (x', y')]
-drawEdge p0@(V2 x y) p1@(V2 x' y') coef = do
-  let V2 radius angle = carthesianToPolar (normalize (p0 - p1))
-      normalDirection = polarToCarthesian (V2 radius (angle + pi / 2))
-      forceColor = mixColors (abs coef ) 1 (mixColors ((max 0 coef)) (abs (min 0 coef)) red blue) black
-  Color forceColor $ Polygon
-    ( map
-        toPoint
-        [ V2 x y + lineThickness * normalDirection,
-          V2 x y - lineThickness * normalDirection,
-          V2 x' y' - lineThickness * normalDirection,
-          V2 x' y' + lineThickness * normalDirection
-        ]
-    )
-  <> (Color red $ Translate ((x' + x) / 2) ((y' + y) / 2) (Scale 0.1 0.1 $ Text (show (truncate (coef * 10)))))
+drawEdge p0@(V2 x y) p1@(V2 x' y') coef =
+  do
+    let V2 radius angle = carthesianToPolar (normalize (p0 - p1))
+        normalDirection = polarToCarthesian (V2 radius (angle + pi / 2))
+        forceColor = mixColors (abs coef) 1 (mixColors ((max 0 coef)) (abs (min 0 coef)) red blue) black
+    Color forceColor $
+      Polygon
+        ( map
+            toPoint
+            [ V2 x y + lineThickness * normalDirection,
+              V2 x y - lineThickness * normalDirection,
+              V2 x' y' - lineThickness * normalDirection,
+              V2 x' y' + lineThickness * normalDirection
+            ]
+        )
+    <> (Color red $ Translate ((x' + x) / 2) ((y' + y) / 2) (Scale 0.1 0.1 $ Text (show (truncate (coef * 10)))))
 
 carthesianToPolar (V2 x y) = (V2 (sqrt (x * x + y * y)) (atan2 y x))
 
@@ -83,14 +83,15 @@ lineThickness = 2
 toPoint (V2 x y) = (x, y)
 
 event :: Event -> World -> World
-event (EventKey _ _ _ (x, y)) world = world { edges = delete closestEdge (world.edges) }
+event (EventKey _ _ _ (x, y)) world = world {edges = delete closestEdge (world.edges)}
   where
-    closestEdge = snd $ minimumBy (comparing fst) $ do
-           e <- world.edges
-           let Just nodeA = Map.lookup e.nodeA world.nodes
-           let Just nodeB = Map.lookup e.nodeB world.nodes
-           let center = (nodeA.position + nodeB.position) / 2
-           pure (distance center (V2 x y), e)
+    closestEdge = snd $
+      minimumBy (comparing fst) $ do
+        e <- world.edges
+        let Just nodeA = Map.lookup e.nodeA world.nodes
+        let Just nodeB = Map.lookup e.nodeB world.nodes
+        let center = (nodeA.position + nodeB.position) / 2
+        pure (distance center (V2 x y), e)
 event _event world = world
 
 -- Bridge
@@ -111,13 +112,13 @@ data NodeState = Fixed | Mobile
 
 data Node = Node
   { position :: V2 Float,
-    velocity :: V2 Float,
+    previousPosition :: V2 Float,
     state :: NodeState
   }
 
 exampleNode = Node (V2 0 0)
 
-mkNode position = Node position (V2 0 0) Mobile
+mkNode position = Node position position Mobile
 
 initWorld :: World
 initWorld =
@@ -129,40 +130,41 @@ initWorld =
           <> [mkEdge (i + 7) (i + 1) | i <- [0 .. 5]]
           <> [mkEdge 7 13]
     }
+  where
+    nodes =
+      Map.fromList $
+        zip
+          [0 ..]
+          [ -- down layer
+            (mkNode (V2 -150 0)),
+            mkNode (V2 -100 0),
+            mkNode (V2 -50 0),
+            mkNode (V2 0 0),
+            mkNode (V2 50 0),
+            mkNode (V2 100 0),
+            (mkNode (V2 150 0)),
+            -- Top layer
+            (mkNode (V2 -125 50)) {state = Fixed},
+            mkNode (V2 -75 50),
+            mkNode (V2 -25 50),
+            mkNode (V2 25 50),
+            mkNode (V2 75 50),
+            (mkNode (V2 125 50)) {state = Fixed},
+            -- Dangling node
+            mkNode (V2 -20 -20)
+          ]
+    mkEdge nodeAIdx nodeBIdx = Edge nodeAIdx nodeBIdx restLength
       where
-        nodes = Map.fromList $
-          zip
-            [0 ..]
-            [ -- down layer
-              (mkNode (V2 -150 0)),
-              mkNode (V2 -100 0),
-              mkNode (V2 -50 0),
-              mkNode (V2 0 0),
-              mkNode (V2 50 0),
-              mkNode (V2 100 0),
-              (mkNode (V2 150 0)),
-              -- Top layer
-              (mkNode (V2 -125 50)) {state = Fixed},
-              mkNode (V2 -75 50),
-              mkNode (V2 -25 50),
-              mkNode (V2 25 50),
-              mkNode (V2 75 50),
-              (mkNode (V2 125 50)) {state = Fixed},
-              -- Dangling node
-              mkNode (V2 -20 -20)
-            ]
-        mkEdge nodeAIdx nodeBIdx = Edge nodeAIdx nodeBIdx restLength
-          where
-            restLength = do
-              let Just nodeA = Map.lookup nodeAIdx nodes
-              let Just nodeB = Map.lookup nodeBIdx nodes
-               in distance nodeA.position nodeB.position
+        restLength = do
+          let Just nodeA = Map.lookup nodeAIdx nodes
+          let Just nodeB = Map.lookup nodeBIdx nodes
+           in distance nodeA.position nodeB.position
 
 stepWithSubSteps dt w = applyN 20 (step (dt / 20)) w
 
 applyN :: Int -> (a -> a) -> a -> a
 applyN 0 _ w = w
-applyN n f w = applyN (n-1) f (f w)
+applyN n f w = applyN (n - 1) f (f w)
 
 step :: Float -> World -> World
 step dt bridge =
@@ -182,21 +184,23 @@ step dt bridge =
       let force = -k * (l - edge.restLength)
       let axis = normalize (nodeA.position - nodeB.position)
 
-      [(edge.nodeA, force *^ axis) ,(edge.nodeB, -force *^ axis)]
+      [(edge.nodeA, force *^ axis), (edge.nodeB, -force *^ axis)]
 
     applyForces :: Int -> Node -> Node
     applyForces nodeId node = case node.state of
-      Mobile -> node {position = newPosition, velocity = newVelocity}
+      Mobile -> node {position = newPosition, previousPosition = node.position}
       Fixed -> node
       where
-        newPosition = node.position + dt *^ node.velocity
-        newVelocity = node.velocity + dt *^ acceleration
+        -- This is verlet integration scheme
+        -- https://fr.wikipedia.org/wiki/Int%C3%A9gration_de_Verlet
+        newPosition = 2 * node.position - node.previousPosition + (dt * dt) *^ acceleration
+        currentVelocity = (node.position - node.previousPosition) ^/ dt
 
-        dampening = -(node.velocity) * 0.1
+        dampening = -currentVelocity * 0.1
 
         edgeForce = case Map.lookup nodeId edgeForces of
-                           Just edgeForce -> edgeForce
-                           Nothing -> V2 0 0
+          Just edgeForce -> edgeForce
+          Nothing -> V2 0 0
         acceleration = (edgeForce + gravityForce + dampening) / massNode
 
 massNode = 10
